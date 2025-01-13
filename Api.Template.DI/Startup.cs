@@ -1,10 +1,15 @@
-﻿using System.Security.Claims;
+﻿using System.Security.Authentication;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using Api.Template.Api;
+using Api.Template.Shared.Exceptions;
 using Asp.Versioning;
+using Hellang.Middleware.ProblemDetails.Mvc;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -12,6 +17,8 @@ using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
+using ProblemDetailsOptions = Hellang.Middleware.ProblemDetails.ProblemDetailsOptions;
+using Hellang.Middleware.ProblemDetails;
 
 namespace Api.Template.DI
 {
@@ -102,16 +109,33 @@ namespace Api.Template.DI
 
             services.AddHealthChecks();
 
-            services.AddProblemDetails(options =>
+            services.AddProblemDetailsConventions();
+            services.AddProblemDetails((ProblemDetailsOptions setup) =>
             {
-                options.CustomizeProblemDetails = (context) =>
+                setup.IncludeExceptionDetails = (context, _) =>
                 {
-                    context.ProblemDetails.Type = context.ProblemDetails.Type;
-                    context.ProblemDetails.Title = context.ProblemDetails.Title;
-                    context.ProblemDetails.Detail = context.ProblemDetails.Detail;
-                    context.ProblemDetails.Instance = context.HttpContext.Request.Path;
-                    context.ProblemDetails.Extensions.Add("timestamp", DateTime.Now);
+                    var env = context.RequestServices.GetRequiredService<IHostEnvironment>();
+                    return env.IsDevelopment();
                 };
+                setup.OnBeforeWriteDetails = (ctx, details) =>
+                {
+                    details.Instance = ctx.Request.Path;
+                    details.Extensions.Add("timestamp", DateTime.Now);
+                };
+                setup.Map<ApiException>(exception => new ProblemDetails
+                {
+                    Type = exception.Type,
+                    Title = exception.Title,
+                    Status = exception.Status,
+                    Detail = exception.Detail
+                });
+                setup.Map<AuthenticationException>(exception => new ProblemDetails
+                {
+                    Title = "You don't have any role assigned to access this app.",
+                    Type = "Authorization Error",
+                    Status = StatusCodes.Status403Forbidden,
+                    Detail = exception.Message
+                });
             });
         }
 
@@ -141,6 +165,7 @@ namespace Api.Template.DI
                 options.OAuthClientSecret("Client Secret Key");
                 options.OAuthUseBasicAuthenticationWithAccessCodeGrant();
             });
+            app.UseProblemDetails();
             app.UseRouting();
             app.UseAuthentication();
             app.UseAuthorization();
@@ -150,6 +175,7 @@ namespace Api.Template.DI
                 endpoints.MapControllerRoute("default", "{controller=Home}/{action=Index}");
                 endpoints.MapHealthChecks("/health");
             });
+            
         }
 
         protected virtual void ConfigureCustomServices(IServiceCollection services, IConfiguration configuration)

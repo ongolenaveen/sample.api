@@ -1,0 +1,283 @@
+openapi: 3.0.1
+info:
+  title: Media Api
+  description: >-
+    API to upload and download user's images and documents. This API is
+    protected using Auth0 Identity provider. Consumers of this api should get
+    Access token from Auth0 and pass the received access token as bearer to the
+    API endpoint which they want to consume.
+  contact:
+    name: Naveen Papisetty
+    email: naveenbabu.papisetty@gmail.com
+  version: v1
+servers:
+  - url: devapi.vodafone.com
+security:
+  - oAuth2:
+      - write_media
+      - read_media
+paths:
+  /users/{userId}/documents:
+    get:
+      tags:
+        - Media
+      summary: Retrieves user documents from document store.
+      parameters:
+        - name: userId
+          in: path
+          description: user Identifier.
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          description: >-
+            The number of items to skip before starting to collect the result
+            set.
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          description: The numbers of items to return.
+          schema:
+            type: integer
+        - name: filter
+          in: query
+          description: Filter criteria to to be used while fetching documents.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileResponse'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+    post:
+      tags:
+        - Media
+      security:
+        - oAuth2:
+            - write_media
+      summary: Uploads user documents to document store.
+      description: >-
+        Uploads user documents to document store. Only PDF dcouments are
+        supported at the moment.
+      operationId: PostDocuments
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PostDocumentsRequestBody'
+      responses:
+        '201':
+          description: Created
+          headers:
+            Date:
+              $ref: '#/components/headers/Date'
+            Server:
+              $ref: '#/components/headers/Server'
+            Location:
+              $ref: '#/components/headers/Location'
+        '400':
+          description: Bad Request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '413':
+          description: Content Too Large
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '500':
+          description: Internal Server Error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        default:
+          $ref: '#/components/responses/ProblemDetails'
+  /users/{userId}/documents/{documentId}:
+    delete:
+      tags:
+        - Media
+      summary: Deletes user documents from document store.
+      parameters:
+        - name: userId
+          in: path
+          description: user Identifier.
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          description: Id of the document which needs to be deleted.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ok-Deleted sucessfully.
+        '500':
+          description: Internal Server Error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        default:
+          $ref: '#/components/responses/ProblemDetails'
+components:
+  securitySchemes:
+    oAuth2:
+      type: oauth2
+      description: >-
+        This API uses OAuth 2 with the Authorization code grant flow. [More
+        info](https://api.example.com/docs/auth)
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.example.com/oauth2/authorize
+          tokenUrl: https://api.example.com/oauth2/token
+          scopes:
+            read_media: read user's media.
+            write_media: modify user's media.
+  schemas:
+    PostDocumentsRequestBody:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            type: string
+            format: binary
+    FileResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        type:
+          type: string
+          nullable: true
+        createdOn:
+          type: string
+          format: date-time
+          nullable: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        data:
+          type: string
+          format: byte
+          nullable: true
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          nullable: true
+      additionalProperties: false
+    ProblemDetails:
+      type: object
+      properties:
+        type:
+          type: string
+          description: >
+            An absolute URI that identifies the problem type.  When
+            dereferenced,
+
+            it SHOULD provide human-readable documentation for the problem type
+
+            (e.g., using HTML).
+          format: uri
+          default: about:blank
+        title:
+          type: string
+          description: >
+            A short, summary of the problem type. Written in english and
+            readable
+
+            for engineers (usually not suited for non technical stakeholders and
+
+            not localized); example: Service Unavailable
+        status:
+          maximum: 600
+          minimum: 100
+          type: integer
+          description: >
+            The HTTP status code generated by the origin server for this
+            occurrence
+
+            of the problem.
+          format: int32
+          example: 500
+        detail:
+          type: string
+          description: >
+            A human readable explanation specific to this occurrence of the
+            problem.
+          example: Connection to database timed out
+        instance:
+          type: string
+          description: >
+            An absolute URI that identifies the specific occurrence of the
+            problem.
+
+            It may or may not yield further information if dereferenced.
+          format: uri
+        timestamp:
+          type: string
+          description: Server timestamp of the error instance
+          format: date-time
+  responses:
+    ProblemDetails:
+      description: >-
+        Error occurred - See Status Code and Problem object for more
+        information.
+      headers:
+        Date:
+          $ref: '#/components/headers/Date'
+        Server:
+          $ref: '#/components/headers/Server'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  headers:
+    Date:
+      description: The date and time that the message was sent
+      style: simple
+      explode: false
+      schema:
+        type: string
+        format: date-time
+    Location:
+      description: Used in redirection, or when a new resource has been created
+      style: simple
+      explode: false
+      schema:
+        type: string
+    Server:
+      description: The software used by the origin server that handled the request
+      style: simple
+      explode: false
+      schema:
+        type: string

@@ -4,5 +4,13 @@
     {
         public string DatabaseConnectionString { get;}
 
+        public string CosmosAccountEndpoint { get; }
+
+        public string CosmosAuthKey { get; }
+
+        public string CosmosDatabaseName { get; }
+
+        public string CosmosContainerName { get; }
+
     }
 }
